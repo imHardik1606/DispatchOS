@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 from app.routes import health_router
 from app.routes.transcribe import router as transcribe_router
 from app.routes.reason import router as reason_router
+from app.routes.synthesize import router as synthesize_router
 from app.logger import logger
 
 @asynccontextmanager
@@ -22,6 +23,7 @@ app = FastAPI(
 app.include_router(health_router)
 app.include_router(transcribe_router, prefix="/api/v1")
 app.include_router(reason_router, prefix="/api/v1")
+app.include_router(synthesize_router, prefix="/api/v1")
 
 @app.get("/")
 async def root():
