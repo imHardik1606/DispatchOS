@@ -21,7 +21,7 @@ app = FastAPI(
 )
 
 # Include routers
-app.include_router(health_router)
+app.include_router(health_router, prefix="/api/v1")
 app.include_router(transcribe_router, prefix="/api/v1")
 app.include_router(reason_router, prefix="/api/v1")
 app.include_router(synthesize_router, prefix="/api/v1")
