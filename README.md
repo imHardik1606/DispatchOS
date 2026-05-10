@@ -20,6 +20,11 @@ graph LR
 | `/api/v1/reason` | POST | JSON (transcript) | JSON | LLM dispatcher response generation |
 | `/api/v1/synthesize` | POST | JSON (text) | Audio (MP3) | Text-to-speech via gTTS |
 | `/api/v1/dispatch-call` | POST | Audio File | Audio (MP3) | Full end-to-end voice agent pipeline |
+| `/api/v1/apidocs` | GET | None | HTML | Custom static documentation page |
+
+## Documentation
+- **Interactive API Docs**: Available at `/docs` (Swagger UI) with full schema definitions and metadata.
+- **Static Documentation**: Available at `/api/v1/apidocs` for a high-performance, dependency-free overview of all routes and the pipeline architecture.
 
 ## Running Locally
 1. **Setup Environment**:
@@ -48,6 +53,19 @@ graph LR
      -F "file=@test_audio.wav" \
      --output response.mp3
    ```
+
+## Deployment
+### Railway.app
+This project is pre-configured for deployment on [Railway](https://railway.app/).
+- The `railway.toml` file handles the build and deployment settings.
+- Ensure the `GROQ_API_KEY` is set in your Railway project environment variables.
+
+### Docker
+To run the containerized version locally:
+```bash
+docker build -t dispatch-os .
+docker run -p 8080:8080 -e GROQ_API_KEY=your_key dispatch-os
+```
 
 ## TTS Note
 gTTS is used here as a zero-cost placeholder. In production, this would be replaced with ElevenLabs (eleven_turbo_v2 for low latency) or integrated directly into a LiveKit session for real-time bidirectional audio — which is likely closer to how Hemut's Reach product handles voice at scale.

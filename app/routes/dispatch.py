@@ -16,7 +16,29 @@ ALLOWED_MIME_TYPES = [
     "audio/mp4", "audio/x-m4a"
 ]
 
-@router.post("/dispatch-call")
+@router.post(
+    "/dispatch-call",
+    summary="End-to-end voice dispatch pipeline",
+    description="""This is the primary entry point for the DispatchOS agent. It orchestrates a sequential pipeline where audio bytes are first converted to text via Groq Whisper, then passed to a LLaMA-3 reasoning engine that acts as a freight dispatcher, and finally converted back to speech via gTTS. This endpoint is designed for single-turn driver check-ins.
+
+**Response Headers:**
+- `X-Pipeline-Latency-Ms`: Total time taken for the entire request.
+- `X-Transcription-Ms`: Time spent on speech-to-text processing.
+- `X-Reasoning-Ms`: Time spent on LLM response generation.
+- `X-Synthesis-Ms`: Time spent on text-to-speech synthesis.
+- `X-Transcript-Preview`: A snippet of the transcribed driver speech.
+- `X-TTS-Engine`: The voice engine used (defaults to gTTS).
+
+If no speech is detected in the input audio, the system returns a 200 OK with a 'no_speech' JSON status message instead of audio.""",
+    response_description="An audio stream (MPEG) containing the dispatcher's vocal response, or a JSON object if no speech was detected.",
+    responses={
+        200: {"description": "Pipeline executed successfully (audio returned) or no speech detected"},
+        422: {"description": "Unsupported audio file type or invalid MIME type"},
+        502: {"description": "Upstream stage error (transcription, reasoning, or synthesis failure)"},
+        503: {"description": "External API service unavailable (Groq or gTTS connection issues)"},
+        500: {"description": "Internal server error during pipeline orchestration"}
+    }
+)
 async def dispatch_call(file: UploadFile = File(...)):
     start_total = time.monotonic()
     

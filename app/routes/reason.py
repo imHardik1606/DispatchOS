@@ -11,7 +11,19 @@ router = APIRouter()
 class ReasonRequest(BaseModel):
     transcript: str
 
-@router.post("/reason")
+@router.post(
+    "/reason",
+    summary="Generate dispatcher response",
+    description="Processes the driver transcript using LLaMA-3 to generate a professional dispatcher response. It analyzes the freight context to provide relevant answers regarding status updates or issues. Requires a non-empty transcript to function.",
+    response_description="A JSON object containing the generated response text and word count.",
+    responses={
+        200: {"description": "Reasoning successful and response generated"},
+        400: {"description": "Transcript required or content too short to process"},
+        502: {"description": "Reasoning engine returned an invalid or unparseable response"},
+        503: {"description": "Groq LLaMA API service unavailable"},
+        500: {"description": "Internal server error during LLM inference"}
+    }
+)
 async def reason(request: ReasonRequest):
     start_time = time.perf_counter()
     transcript = request.transcript.strip() if request.transcript else ""

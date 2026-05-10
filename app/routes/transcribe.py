@@ -13,7 +13,18 @@ ALLOWED_MIME_TYPES = [
     "audio/mp4", "audio/x-m4a"
 ]
 
-@router.post("/transcribe")
+@router.post(
+    "/transcribe",
+    summary="Transcribe audio to text",
+    description="Converts uploaded driver audio files into text using Groq's Whisper-1 model. This is the first step in the dispatcher pipeline, enabling the system to understand driver requests. It short-circuits with an 'empty_transcript' status if no speech is detected.",
+    response_description="A JSON object containing the transcribed text and character count.",
+    responses={
+        200: {"description": "Transcription successful (may be empty if no speech detected)"},
+        422: {"description": "Unsupported audio file type or invalid MIME type"},
+        503: {"description": "Groq Whisper API service unavailable"},
+        500: {"description": "Internal server error during audio processing"}
+    }
+)
 async def transcribe(file: UploadFile = File(...)):
     start_time = time.perf_counter()
     

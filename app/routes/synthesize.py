@@ -11,7 +11,19 @@ router = APIRouter()
 class SynthesizeRequest(BaseModel):
     text: str
 
-@router.post("/synthesize")
+@router.post(
+    "/synthesize",
+    summary="Synthesize text to speech",
+    description="Converts dispatcher text responses into audio bytes using gTTS. This provides the vocal output for the driver to hear. It validates text length and content before processing.",
+    response_description="An audio stream (MPEG) containing the synthesized voice.",
+    responses={
+        200: {"description": "Synthesis successful and audio stream returned"},
+        400: {"description": "Text required or content exceeds character limits"},
+        502: {"description": "Upstream voice engine returned empty audio data"},
+        503: {"description": "gTTS voice synthesis service unavailable"},
+        500: {"description": "Internal server error during audio synthesis"}
+    }
+)
 async def synthesize(request: SynthesizeRequest):
     start_time = time.perf_counter()
     text = request.text.strip() if request.text else ""
