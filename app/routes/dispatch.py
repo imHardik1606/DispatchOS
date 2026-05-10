@@ -1,0 +1,128 @@
+from fastapi import APIRouter, UploadFile, File, status
+from fastapi.responses import JSONResponse, StreamingResponse
+from app.services.transcription import transcribe_audio
+from app.services.reasoning import reason_about_transcript
+from app.services.synthesis import synthesize_speech
+from app.logger import logger
+import time
+import io
+import groq
+
+router = APIRouter()
+
+ALLOWED_MIME_TYPES = [
+    "audio/wav", "audio/wave", "audio/x-wav", 
+    "audio/mpeg", "audio/mp3", 
+    "audio/mp4", "audio/x-m4a"
+]
+
+@router.post("/dispatch-call")
+async def dispatch_call(file: UploadFile = File(...)):
+    start_total = time.monotonic()
+    
+    # 1. Validate mime type
+    if file.content_type not in ALLOWED_MIME_TYPES:
+        return JSONResponse(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            content={
+                "error": "Unsupported file type",
+                "accepted": ["wav", "mp3", "m4a"],
+                "received": file.content_type
+            }
+        )
+    
+    try:
+        # 2. Transcription Stage
+        start_transcription = time.monotonic()
+        file_bytes = await file.read()
+        
+        try:
+            trans_result = await transcribe_audio(file_bytes, file.filename)
+            transcript = trans_result["transcript"]
+        except ValueError as e:
+            if str(e) == "Transcript text is empty":
+                return {
+                    "status": "no_speech",
+                    "message": "No driver speech detected in audio"
+                }
+            raise e
+            
+        transcription_ms = (time.monotonic() - start_transcription) * 1000
+        
+        # 3. Reasoning Stage
+        start_reasoning = time.monotonic()
+        try:
+            reason_result = await reason_about_transcript(transcript)
+            response_text = reason_result["response_text"]
+            word_count = reason_result["word_count"]
+        except ValueError as e:
+            # Re-raise to be caught by the outer block with reasoning stage
+            raise e
+            
+        reasoning_ms = (time.monotonic() - start_reasoning) * 1000
+        
+        # 4. Synthesis Stage
+        start_synthesis = time.monotonic()
+        audio_bytes = await synthesize_speech(response_text)
+        synthesis_ms = (time.monotonic() - start_synthesis) * 1000
+        
+        total_latency_ms = (time.monotonic() - start_total) * 1000
+        transcript_preview = transcript[:60]
+        
+        # Logging
+        logger.info(
+            f"Dispatch pipeline success: filename={file.filename}, "
+            f"total_latency={total_latency_ms:.2f}ms, trans_ms={transcription_ms:.2f}ms, "
+            f"reason_ms={reasoning_ms:.2f}ms, synth_ms={synthesis_ms:.2f}ms, "
+            f"preview='{transcript_preview}', words={word_count}"
+        )
+        
+        # Response with headers
+        return StreamingResponse(
+            io.BytesIO(audio_bytes),
+            media_type="audio/mpeg",
+            headers={
+                "X-Pipeline-Latency-Ms": f"{total_latency_ms:.2f}",
+                "X-Transcription-Ms": f"{transcription_ms:.2f}",
+                "X-Reasoning-Ms": f"{reasoning_ms:.2f}",
+                "X-Synthesis-Ms": f"{synthesis_ms:.2f}",
+                "X-Transcript-Preview": transcript_preview,
+                "X-TTS-Engine": "gTTS"
+            }
+        )
+        
+    except Exception as e:
+        # Determine pipeline stage
+        stage = "unknown"
+        # Based on where the error likely occurred
+        # Since I'm using nested try blocks for specific logic, I can track stage
+        # But a simpler way is to check the type or use a variable
+        
+        # If we didn't reach reasoning, it was transcription
+        if 'transcription_ms' not in locals():
+            stage = "transcription"
+        elif 'reasoning_ms' not in locals():
+            stage = "reasoning"
+        else:
+            stage = "synthesis"
+            
+        logger.error(f"Pipeline failed at {stage}: {str(e)}", exc_info=True)
+        
+        # Handle specific error types
+        if isinstance(e, (groq.GroqError, groq.APIError)):
+            status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+            msg = f"{stage.capitalize()} service unavailable"
+        elif isinstance(e, ValueError) or isinstance(e, RuntimeError):
+            status_code = status.HTTP_502_BAD_GATEWAY
+            msg = str(e)
+        else:
+            status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+            msg = str(e)
+            
+        return JSONResponse(
+            status_code=status_code,
+            content={
+                "error": msg,
+                "pipeline_stage": stage
+            }
+        )
