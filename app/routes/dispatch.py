@@ -13,7 +13,8 @@ router = APIRouter()
 ALLOWED_MIME_TYPES = [
     "audio/wav", "audio/wave", "audio/x-wav", 
     "audio/mpeg", "audio/mp3", 
-    "audio/mp4", "audio/x-m4a"
+    "audio/mp4", "audio/m4a", "audio/x-m4a",
+    "video/mp4"
 ]
 
 @router.post(

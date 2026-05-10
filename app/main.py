@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from contextlib import asynccontextmanager
 from app.routes import health_router
 from app.routes.transcribe import router as transcribe_router
@@ -30,6 +30,12 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    logger.info(f"Incoming request: {request.method} {request.url}")
+    response = await call_next(request)
+    return response
+
 # Include routers
 app.include_router(health_router, prefix="/api/v1")
 app.include_router(transcribe_router, prefix="/api/v1")
@@ -40,4 +46,4 @@ app.include_router(apidocs_router, prefix="/api/v1")
 
 @app.get("/")
 async def root():
-    return {"message": "Freight Voice Agent API is running"}
+    return {"message": "Dispatch Freight Voice Agent API is running"}
